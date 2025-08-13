@@ -1,0 +1,274 @@
+// 🎨 Переменные темы
+$bg1: #0f1117;
+$bg2: #0b0d13;
+$card: rgba(255,255,255,.06);
+$muted: #a6b0c3;
+$accent1: #7aa2ff;
+$accent2: #9b8cff;
+
+// 🔘 Миксин кнопки
+@mixin player-button($padding: 10px 14px, $gradient1: rgba(255,255,255,.08), $gradient2: rgba(255,255,255,.02)) {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.14);
+  background: linear-gradient(180deg, $gradient1, $gradient2);
+  color: #eaf0ff;
+  border-radius: 14px;
+  padding: $padding;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter: saturate(110%);
+}
+
+// ============================
+// 📦 Дальше обычные стили
+// ============================
+* { box-sizing: border-box }
+
+:root{
+  --bg1:#0f1117; --bg2:#0b0d13;
+  --card:rgba(255,255,255,.06);
+  --muted:#a6b0c3; --accent:#7aa2ff; --accent-2:#9b8cff;
+}
+*{box-sizing:border-box} 
+body{margin:0;min-height:100vh;color:#eaeef5;background:radial-gradient(1200px 800px at 0% 0%,#1b1f2a 0%,var(--bg1) 30%,var(--bg2) 80%) fixed; font:16px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
+.app{max-width:860px;margin:60px auto;padding:24px}
+h1{font-size:28px;margin:0 0 18px;letter-spacing:.2px}
+.card{
+  position:relative;background:var(--card);border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;padding:18px 18px 12px;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow:0 10px 40px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+
+/* buttons inside generic rows (e.g., Loop) */
+.row > button{
+  -webkit-appearance:none; appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
+  color:#eaf0ff; border-radius:12px; padding:8px 12px; cursor:pointer;
+  transition:transform .12s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease;
+  box-shadow:0 4px 12px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.row > button:hover{
+  transform:translateY(-1px);
+  border-color: rgba(122,162,255,.35);
+  box-shadow:0 10px 22px rgba(0,0,0,.28), 0 0 0 1px rgba(122,162,255,.12) inset;
+  background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.03));
+}
+.row > button:focus-visible{
+  outline:none;
+  border-color: rgba(122,162,255,.65);
+  box-shadow:0 0 0 3px rgba(122,162,255,.22), 0 10px 22px rgba(0,0,0,.28);
+}
+.row > button.active{
+  border-color: rgba(122,162,255,.75);
+  box-shadow:0 0 0 2px rgba(122,162,255,.28) inset, 0 10px 22px rgba(0,0,0,.28);
+  background:linear-gradient(180deg, rgba(122,162,255,.18), rgba(255,255,255,.04));
+}
+
+.controls button{
+  -webkit-appearance:none; appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
+  color:#eaf0ff; border-radius:14px; padding:10px 14px; cursor:pointer;
+  transition:transform .12s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease;
+  box-shadow:0 4px 14px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:saturate(110%);
+}
+.controls button:hover{
+  transform:translateY(-1px);
+  border-color: rgba(122,162,255,.35);
+  box-shadow:0 10px 24px rgba(0,0,0,.30), 0 0 0 1px rgba(122,162,255,.12) inset;
+  background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.03));
+}
+.controls button:focus-visible{
+  outline:none;
+  border-color: rgba(122,162,255,.65);
+  box-shadow:0 0 0 3px rgba(122,162,255,.22), 0 10px 24px rgba(0,0,0,.30);
+}
+.controls button.active{
+  border-color: rgba(122,162,255,.75);
+  box-shadow:0 0 0 2px rgba(122,162,255,.28) inset, 0 10px 24px rgba(0,0,0,.30);
+  background:linear-gradient(180deg, rgba(122,162,255,.18), rgba(255,255,255,.04));
+}
+
+/* Center button (Play/Pause) — чуть крупнее и ярче */
+.controls button:nth-child(2){
+  padding:12px 18px; font-weight:600; letter-spacing:.1px;
+  background-image: linear-gradient(180deg, rgba(122,162,255,.22), rgba(155,140,255,.12));
+  border-color: rgba(122,162,255,.45);
+  box-shadow:0 10px 26px rgba(92,122,205,.35), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.controls button:nth-child(2):hover{
+  border-color: rgba(122,162,255,.65);
+  box-shadow:0 12px 30px rgba(92,122,205,.45), 0 0 0 1px rgba(122,162,255,.18) inset;
+}
+.controls button:nth-child(2).active{
+  background-image: linear-gradient(180deg, rgba(122,162,255,.32), rgba(155,140,255,.18));
+}
+
+/* Нажатое и отключённое состояние */
+.controls button:active{ transform:translateY(0); box-shadow:0 4px 14px rgba(0,0,0,.28) inset }
+.controls button:disabled{ opacity:.55; cursor:not-allowed; filter:saturate(.7)}
+
+/* Небольшой выравнивающий gap для иконок/текста */
+.controls button > :where(svg){ pointer-events:none; vertical-align:middle; margin-right:.25em }
+/* ===== Glass range (seek + volume) for WebKit + Firefox ===== */
+.range,
+input[type="range"]{
+  width:100%;
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  background:transparent;
+  height:14px;
+  margin-top:6px;
+  border-radius:999px;
+}
+
+/* WebKit track */
+.range::-webkit-slider-runnable-track,
+input[type="range"]::-webkit-slider-runnable-track{
+  height:14px; border-radius:999px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04)) padding-box;
+  /* «заполненная» полоска поверх будет символизироваться внутренней тенью и градиентом ниже */
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.15),
+    inset 0 6px 16px rgba(0,0,0,.35);
+}
+
+/* WebKit thumb */
+.range::-webkit-slider-thumb,
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:22px; height:22px; margin-top:-4px;
+  border-radius:50%;
+  background:
+    radial-gradient(12px 12px at 50% 40%, #ffffff 0%, #f5f7ff 60%, #e9edff 100%);
+  border:2px solid #dfe7ff;
+  box-shadow:
+    0 10px 26px rgba(122,162,255,.45),
+    0 0 0 1px rgba(255,255,255,.6) inset;
+  transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.range:hover::-webkit-slider-thumb,
+input[type="range"]:hover::-webkit-slider-thumb{
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 28px rgba(122,162,255,.55),
+    0 0 0 1px rgba(255,255,255,.75) inset;
+}
+.range:active::-webkit-slider-thumb,
+input[type="range"]:active::-webkit-slider-thumb{
+  transform: translateY(0) scale(.98);
+}
+
+/* Firefox track */
+.range::-moz-range-track,
+input[type="range"]::-moz-range-track{
+  height:14px; border-radius:999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.15),
+    inset 0 6px 16px rgba(0,0,0,.35);
+}
+
+/* Firefox thumb */
+.range::-moz-range-thumb,
+input[type="range"]::-moz-range-thumb{
+  width:22px; height:22px; border-radius:50%;
+  background: radial-gradient(12px 12px at 50% 40%, #ffffff 0%, #f5f7ff 60%, #e9edff 100%);
+  border:2px solid #dfe7ff;
+  box-shadow:
+    0 10px 26px rgba(122,162,255,.45),
+    0 0 0 1px rgba(255,255,255,.6) inset;
+  transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+/* Focus ring for accessibility */
+.range:focus-visible,
+input[type="range"]:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(122,162,255,.2);
+  border-radius: 999px;
+}
+.time{color:var(--muted);font-variant-numeric:tabular-nums}
+.header{display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.cover{width:84px;height:84px;border-radius:16px;object-fit:cover;
+  box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.1)}
+.playlist{margin-top:12px;display:grid;gap:8px}
+.track{
+  padding:10px 12px;border-radius:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+  border:1px solid rgba(255,255,255,.06);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+  transition:background .15s ease, transform .1s ease, border-color .15s ease;
+}
+.track:hover{ transform:translateY(-1px); border-color:rgba(255,255,255,.12) }
+.track.active{ border-color: rgba(122,162,255,.6); background:linear-gradient(180deg,rgba(122,162,255,.12),rgba(122,162,255,.04))}
+.title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%}
+.dropzone{
+  margin:0 0 16px;padding:18px;border:1.5px dashed rgba(255,255,255,.18);border-radius:16px;
+  text-align:center;color:var(--muted);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+  transition:border-color .15s ease, background .15s ease
+}
+.dropzone.drag{border-color: var(--accent); color:#e3eaff; background:linear-gradient(180deg,rgba(122,162,255,.18),rgba(255,255,255,.02))}
+/* —— File input: glass button, hide filename text ———————————— */
+.file-btn input[type="file"]{
+  /* прячем системный текст справа от кнопки */
+  font-size: 0;               /* ← скрывает “файлы не выбраны” */
+  border: 0;
+  background: transparent;
+  color: transparent;
+  outline: none;
+}
+
+/* стилизуем саму кнопку (Safari/Chrome/Firefox поддерживают ::file-selector-button) */
+.file-btn input[type="file"]::file-selector-button{
+  font-size: 14px;            /* возвращаем размер шрифта только кнопке */
+  -webkit-appearance:none; appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.03));
+  color:#eaf0ff;
+  border-radius:12px;
+  padding:10px 14px;
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease;
+  box-shadow:0 6px 16px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.file-btn input[type="file"]::file-selector-button:hover{
+  transform:translateY(-1px);
+  border-color: rgba(122,162,255,.35);
+  background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05));
+  box-shadow:0 12px 26px rgba(0,0,0,.30), 0 0 0 1px rgba(122,162,255,.12) inset;
+}
+
+.file-btn input[type="file"]::file-selector-button:focus-visible{
+  outline:none;
+  border-color: rgba(122,162,255,.65);
+  box-shadow:0 0 0 3px rgba(122,162,255,.22), 0 10px 22px rgba(0,0,0,.28);
+}
+
+.file-btn input[type="file"]::file-selector-button:active{
+  transform:translateY(0);
+  box-shadow:0 6px 14px rgba(0,0,0,.26) inset;
+}ç
+select{
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  height:36px; line-height:36px;
+  border:1px solid rgba(255,255,255,.14);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02)) padding-box,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aab7ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center/12px 12px;
+  color:#eaf0ff; border-radius:12px; padding:0 34px 0 12px;
+  box-shadow:0 4px 14px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.04);
+}
+select:focus{ outline:none; border-color:rgba(122,162,255,.65); box-shadow:0 0 0 3px rgba(122,162,255,.22), 0 6px 18px rgba(0,0,0,.28)}
+select:hover{ border-color: rgba(122,162,255,.35)}
+select::-ms-expand{ display:none }
+
+/* keep accent for sliders */
+input[type="range"]{ accent-color:#a8b7ff }
