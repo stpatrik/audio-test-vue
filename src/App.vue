@@ -1,7 +1,8 @@
 <script setup>
 /**
- * Полный Vue Audio Player с Web Audio FX-цепочкой и DnD редактором
- * Зависимости: vuedraggable@next, music-metadata-browser
+ * Vue Audio Player с Web Audio FX-цепочкой и DnD-редактором
+ * Зависимости в проекте: vuedraggable@next, music-metadata-browser
+ * Комментарии структурные: поясняют ключевые блоки и логику.
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Draggable from 'vuedraggable'
@@ -9,40 +10,45 @@ import { parseBlob } from 'music-metadata-browser'
 
 /* ==========================
    БАЗОВОЕ СОСТОЯНИЕ ПЛЕЕРА
+   — стейт треков, текущий индекс, время, громкость и т.п.
    ========================== */
-const LS_KEY = 'vue-audio-state-v3'
+const LS_KEY = 'vue-audio-state-v3' // ключ для сохранения состояния в localStorage
 
+// Стартовый плейлист (можно удалить — файлы можно перетягивать мышкой)
 const playlist = ref([
   { title: 'Lo‑fi Beat', src: '/audio/track1.mp3', artist: 'You' },
   { title: 'Ambient Pad', src: '/audio/track2.mp3', artist: 'You' },
 ])
-const index = ref(0)
-const current = computed(() => playlist.value[index.value])
+const index = ref(0)                       // индекс текущего трека
+const current = computed(() => playlist.value[index.value]) // текущий трек
 
+// Управление <audio>
 const audioEl = ref(null)
 const isPlaying = ref(false)
-const progress = ref(0)      // 0..1
-const volume = ref(0.9)      // 0..1
-const rate = ref(1)          // 0.5..2
-const loop = ref(false)
+const progress = ref(0)      // прогресс 0..1 (для слайдера перемотки)
+const volume = ref(0.9)      // 0..1 — громкость, управляется через WebAudio GainNode
+const rate = ref(1)          // скорость воспроизведения
+const loop = ref(false)      // повтор трека
 const duration = ref(0)
 const currentTime = ref(0)
 
+// Отображение обложки и заголовков
 const coverUrl = ref('')
 const displayTitle = computed(() => current.value?.title ?? '—')
 const displayArtist = computed(() => current.value?.artist ?? '')
 
 /* =============
    WEB AUDIO
-   ============= */
+   — создаём AudioContext, MediaElementSource, Gain и Analyser.
+   ================= */
 const audioCtx = ref(null)
-let sourceNode = null
-let gainNode = null
-let analyser = null
+let sourceNode = null      // источник звука (привязываем <audio> к графу)
+let gainNode = null        // общий гейн, сюда прилетают все сигналы после source
+let analyser = null        // анализатор для визуализации
 const visCanvas = ref(null)
-let rafId = 0
+let rafId = 0              // id requestAnimationFrame для остановки визуализации
 
-// FX узлы
+// Узлы эффектов (создаются лениво и переиспользуются)
 let eqLow = null, eqMid = null, eqHigh = null
 let waveShaper = null
 let chorusDelay = null, chorusDepthGain = null, chorusLFO = null, chorusWet = null
@@ -51,22 +57,27 @@ let convolver = null, reverbWet = null
 let panner = null
 let compressor = null
 
+// Утилита: создаём Gain с заданным уровнем
 function makeGain(v = 1) {
   const g = audioCtx.value.createGain()
   g.gain.value = v
   return g
 }
 
+/* ==========================
+   ПАРАМЕТРЫ ЭФФЕКТОВ
+   — значения для настроек UI; включение/выключение, ручки и т.д.
+   ========================== */
 const fx = ref({
   // EQ
   eqOn: false, lowGain: 0, midGain: 0, highGain: 0,
   // Distortion
-  distOn: false, distAmount: 50, // 0..100
+  distOn: false, distAmount: 50, // 0..100 (интенсивность кривой)
   // Chorus
   chorusOn: false, chorusRate: 1.5, chorusDepth: 0.002, chorusWet: 0.5,
   // Delay
   delayOn: false, delayTime: 0.3, delayFeedback: 0.4, delayWet: 0.5,
-  // Reverb
+  // Reverb (для работы нужен загруженный IR)
   reverbOn: false, reverbWet: 0.5, reverbIR: '',
   // Pan
   panOn: false, pan: 0,
@@ -76,8 +87,8 @@ const fx = ref({
 
 /* ==========================
    РЕДАКТОР ЦЕПОЧКИ ЭФФЕКТОВ
+   — массив управляет порядком блоков и режимом: serial | parallel
    ========================== */
-// enabled — вкл/выкл; mode — "serial" | "parallel"
 const fxChain = ref([
   { id: 'eq',     title: 'EQ',          enabled: false, mode: 'serial'   },
   { id: 'dist',   title: 'Distortion',  enabled: false, mode: 'serial'   },
@@ -88,7 +99,7 @@ const fxChain = ref([
   { id: 'comp',   title: 'Compressor',  enabled: false, mode: 'serial'   },
 ])
 
-// Синхронизация старых флагов fx.*On с цепочкой
+// Синхронизация флагов fx.*On с элементами цепочки (единый источник истины — fxChain)
 watch(fxChain, chain => {
   const map = Object.fromEntries(chain.map(x => [x.id, x.enabled]))
   fx.value.eqOn     = !!map.eq
@@ -101,13 +112,11 @@ watch(fxChain, chain => {
   rebuildGraph()
 }, { deep: true })
 
-// DnD события (в Draggable они не обязательны, но пригодятся)
-function onChainChange() {
-  rebuildGraph()
-}
+// Хук от Draggable — на любое изменение порядка/сост. пересобираем граф
+function onChainChange() { rebuildGraph() }
 
 /* =========
-   ВСПОМОГАТЕЛЬНОЕ
+   ВСПОМОГАТЕЛЬНОЕ (формат времени, кривая дисторшна)
    ========= */
 function formatTime(s) {
   if (!Number.isFinite(s)) return '0:00'
@@ -117,6 +126,7 @@ function formatTime(s) {
 }
 
 function makeDistortionCurve(amount = 50) {
+  // Стандартная waveshaper-кривая (тёплый перегруз)
   const k = +amount
   const n = 44100
   const curve = new Float32Array(n)
@@ -128,24 +138,33 @@ function makeDistortionCurve(amount = 50) {
   return curve
 }
 
+/* =========
+   ИНИЦИАЛИЗАЦИЯ WEB AUDIO ГРАФА
+   — создаётся один раз при первом воспроизведении
+   ========= */
 async function ensureAudioGraph() {
   if (audioCtx.value || !audioEl.value) return
   const Ctx = window.AudioContext || window.webkitAudioContext
   audioCtx.value = new Ctx()
   sourceNode = audioCtx.value.createMediaElementSource(audioEl.value)
-  gainNode = makeGain(volume.value)
-  analyser = audioCtx.value.createAnalyser()
+  gainNode = makeGain(volume.value)           // общий контроль громкости
+  analyser = audioCtx.value.createAnalyser()  // для визуализатора
   analyser.fftSize = 2048
-  audioEl.value.volume = 1
+  audioEl.value.volume = 1                    // громкость теперь через GainNode
   startVisualizer()
-  rebuildGraph()
+  rebuildGraph()                              // первая сборка графа
 }
 
+// Управление общей громкостью
 function updateGain(v) {
   if (gainNode) gainNode.gain.value = v
   else if (audioEl.value) audioEl.value.volume = v
 }
 
+/* =========
+   ВИЗУАЛИЗАТОР СПЕКТРА
+   — рендер столбиков частот в <canvas>
+   ========= */
 function startVisualizer() {
   if (!visCanvas.value || !analyser) return
   const canvas = visCanvas.value
@@ -174,21 +193,22 @@ function startVisualizer() {
 }
 
 /* ==========================
-   СБОРКА ГРАФА ПО ЦЕПОЧКЕ
+   СБОРКА ГРАФА ПО ЦЕПОЧКЕ ЭФФЕКТОВ
+   — идём по fxChain, учитываем режим блока: serial / parallel
    ========================== */
 function rebuildGraph() {
   if (!audioCtx.value || !sourceNode) return
 
-  // чистые подключения
+  // Очистить существующие соединения (начинаем с чистого листа)
   try { sourceNode.disconnect() } catch {}
   gainNode?.disconnect()
   analyser?.disconnect()
 
-  // вход в граф
+  // Старт: источник → общий Gain
   sourceNode.connect(gainNode)
   let head = gainNode
 
-  // вспом. функция для параллельного блока: sum(dry, wet)
+  // Утилита параллельного включения: dry + wet → sum
   const makeParallel = (headIn, wetNode, wetGainValue = 1) => {
     const dry = makeGain(1)
     const wetGain = makeGain(wetGainValue)
@@ -201,7 +221,7 @@ function rebuildGraph() {
     return sum
   }
 
-  // подготовить узлы
+  // Подготовка узлов под текущие параметры (ленивая инициализация)
   if (fx.value.eqOn) {
     eqLow  ||= audioCtx.value.createBiquadFilter()
     eqMid  ||= audioCtx.value.createBiquadFilter()
@@ -223,6 +243,7 @@ function rebuildGraph() {
     chorusLFO.frequency.value = fx.value.chorusRate
     try { chorusLFO.start() } catch {}
     chorusWet ||= makeGain(fx.value.chorusWet)
+    // LFO → depth → delayTime
     chorusLFO.disconnect(); chorusLFO.connect(chorusDepthGain)
     chorusDepthGain.disconnect(); chorusDepthGain.connect(chorusDelay.delayTime)
   }
@@ -233,7 +254,7 @@ function rebuildGraph() {
     delayNode.delayTime.value = fx.value.delayTime
   }
   if (fx.value.reverbOn) {
-    convolver ||= audioCtx.value.createConvolver()
+    convolver ||= audioCtx.value.createConvolver() // IR загружается отдельно
     reverbWet ||= makeGain(fx.value.reverbWet)
   }
   if (fx.value.panOn) {
@@ -249,7 +270,7 @@ function rebuildGraph() {
     compressor.release.value   = fx.value.compRelease
   }
 
-  // пройти по цепочке
+  // Основной проход: применяем блоки по порядку из fxChain
   for (const block of fxChain.value) {
     if (!block.enabled) continue
     const serial = block.mode === 'serial'
@@ -272,7 +293,7 @@ function rebuildGraph() {
     }
 
     if (block.id === 'delay' && fx.value.delayOn) {
-      // feedback: delay -> feedback -> delay
+      // Сборка feedback-петли: delay → feedback → delay
       try { delayNode.disconnect() } catch {}
       try { delayFeedback.disconnect() } catch {}
       delayNode.connect(delayFeedback)
@@ -280,6 +301,7 @@ function rebuildGraph() {
 
       if (serial) { head.connect(delayNode); head = delayNode }
       else {
+        // Параллельная «мок»-ветка: на выход через delayWet
         try { delayFeedback.disconnect() } catch {}
         delayFeedback.connect(delayWet)
         head = makeParallel(head, delayNode, fx.value.delayWet)
@@ -294,23 +316,25 @@ function rebuildGraph() {
     }
 
     if (block.id === 'pan' && fx.value.panOn) {
+      // Панорамирование имеет смысл только в серии
       head.connect(panner); head = panner; continue
     }
 
     if (block.id === 'comp' && fx.value.compOn) {
       if (serial) { head.connect(compressor); head = compressor }
-      else { head = makeParallel(head, compressor, 0.6) }
+      else { head = makeParallel(head, compressor, 0.6) } // параллельная компрессия (NY-style)
       continue
     }
   }
 
-  // хвост → в анализатор → destination
+  // Хвост цепочки: в анализатор и далее на выход устройства
   head.connect(analyser)
   analyser.connect(audioCtx.value.destination)
 }
 
 /* ==========================
    КОНТРОЛЛЕРЫ ВОСПРОИЗВЕДЕНИЯ
+   — play/pause/stop/seek + выбор трека
    ========================== */
 async function play() {
   if (!audioEl.value) return
@@ -345,7 +369,8 @@ function onEnded() { if (!loop.value) next() }
 function selectTrack(i) { index.value = i }
 
 /* =========
-   ФАЙЛЫ
+   ЗАГРУЗКА ФАЙЛОВ (drag&drop и input)
+   — читаем теги через music-metadata-browser, извлекаем обложку
    ========= */
 const dragging = ref(false)
 
@@ -358,7 +383,7 @@ function arrayBufferToBase64(buffer) {
 async function handleFiles(fileList) {
   const files = Array.from(fileList).filter(f => f.type.startsWith('audio/'))
   for (const file of files) {
-    const url = URL.createObjectURL(file)
+    const url = URL.createObjectURL(file) // создаём локальный blob-URL
     let metaTitle = file.name.replace(/\.[^.]+$/, '')
     let metaArtist = ''
     let coverDataUrl = ''
@@ -373,6 +398,7 @@ async function handleFiles(fileList) {
     } catch {}
     playlist.value.push({ title: metaTitle, artist: metaArtist, src: url, _localObjectUrl: url, cover: coverDataUrl || '' })
   }
+  // Автовоспроизведение первого добавленного
   if (!isPlaying.value && files.length) {
     index.value = playlist.value.length - files.length
     await nextTick(); play().catch(()=>{})
@@ -380,13 +406,14 @@ async function handleFiles(fileList) {
   saveState()
 }
 
+// Dropzone обработчики
 function onDrop(e) { dragging.value = false; if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files) }
 function onDragOver(e) { e.preventDefault(); dragging.value = true }
 function onDragLeave() { dragging.value = false }
 function onFilePick(e) { if (e.target?.files?.length) handleFiles(e.target.files) }
 
 /* =========
-   REVERB IR
+   REVERB IR — загрузка импульсной характеристики для ConvolverNode
    ========= */
 async function loadReverbIR() {
   if (!audioCtx.value) await ensureAudioGraph()
@@ -402,7 +429,8 @@ async function loadReverbIR() {
 }
 
 /* =========
-   STATE
+   СОХРАНЕНИЕ СОСТОЯНИЯ (localStorage)
+   — сохраняем плейлист (без локальных blob-URL), позицию и настройки FX
    ========= */
 let lastSave = 0
 function saveStateThrottled() { const now = performance.now(); if (now - lastSave > 800) { lastSave = now; saveState() } }
@@ -425,6 +453,7 @@ function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY); if (!raw) return
     const s = JSON.parse(raw)
+    // Восстанавливаем только внешние треки (blob-URL не переживают перезагрузку)
     if (Array.isArray(s.playlist) && s.playlist.length) {
       const restored = s.playlist.filter(t => t.src).map(t => ({ title: t.title, artist: t.artist, src: t.src, cover: t.cover || '' }))
       if (restored.length) playlist.value = restored
@@ -440,14 +469,14 @@ function loadState() {
 }
 
 /* =========
-   WATCHERS
+   WATCHERS — реакция на изменение настроек и индексов
    ========= */
 watch(volume, v => { updateGain(v); saveStateDebounced() })
 watch(rate,   r => { if (audioEl.value) audioEl.value.playbackRate = r; saveStateDebounced() })
 watch(loop,   l => { if (audioEl.value) audioEl.value.loop = l; saveStateDebounced() })
 watch(index, async () => { await nextTick(); try { await audioEl.value.play() } catch {}; refreshCover(); applyMediaSession(); saveState() })
 
-// FX param live updates
+// Живые обновления параметров FX (без полной пересборки графа, где возможно)
 watch(() => fx.value.lowGain,  v => { if (eqLow)  eqLow.gain.value = v })
 watch(() => fx.value.midGain,  v => { if (eqMid)  eqMid.gain.value = v })
 watch(() => fx.value.highGain, v => { if (eqHigh) eqHigh.gain.value = v })
@@ -467,7 +496,8 @@ watch(() => fx.value.compAttack,    v => { if (compressor) compressor.attack.val
 watch(() => fx.value.compRelease,   v => { if (compressor) compressor.release.value = v })
 
 /* =========
-   MEDIA SESSION + MOUNT
+   MEDIA SESSION + МОНТИРОВАНИЕ
+   — интеграция с системными контролами и хоткеями
    ========= */
 function refreshCover() { coverUrl.value = current.value?.cover || '' }
 function applyMediaSession() {
@@ -479,6 +509,7 @@ function applyMediaSession() {
 }
 
 function onLoadedMeta() {
+  // Применяем настройки к <audio>, выставляем сохранённую позицию
   duration.value = audioEl.value.duration || 0
   audioEl.value.volume = 1
   updateGain(volume.value)
@@ -493,10 +524,12 @@ function onLoadedMeta() {
 onMounted(() => {
   loadState()
 
+  // Синхронизация флага isPlaying с событиями <audio>
   const a = audioEl.value
   a?.addEventListener('play', () => (isPlaying.value = true))
   a?.addEventListener('pause', () => (isPlaying.value = false))
 
+  // Глобальные хоткеи управления
   const onKey = (e) => {
     if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) return
     if (e.code === 'Space') { e.preventDefault(); toggle() }
@@ -509,6 +542,7 @@ onMounted(() => {
   window.addEventListener('keydown', onKey)
   onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
+  // Интеграция с системными медиакнопками
   if ('mediaSession' in navigator) {
     navigator.mediaSession.setActionHandler('play', play)
     navigator.mediaSession.setActionHandler('pause', () => pause())
@@ -520,6 +554,7 @@ onMounted(() => {
   }
 })
 
+// Остановка анимации визуализатора при размонтировании
 onBeforeUnmount(() => cancelAnimationFrame(rafId))
 </script>
 
@@ -527,7 +562,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
   <div class="app">
     <h1>🎧 Vue Audio Player</h1>
 
-    <!-- Dropzone -->
+    <!-- Dropzone: drag&drop файлов или выбор через input -->
     <div
       class="dropzone"
       :class="{drag: dragging}"
@@ -539,6 +574,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
       </div>
     </div>
 
+    <!-- Карточка плеера: обложка, транспорт, визуализатор, громкость/скорость/loop -->
     <div class="card">
       <div class="header">
         <img v-if="coverUrl" :src="coverUrl" class="cover" alt="cover">
@@ -548,6 +584,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         </div>
       </div>
 
+      <!-- Привязанный <audio> — источник для Web Audio графа -->
       <audio
         ref="audioEl"
         :src="current?.src"
@@ -556,6 +593,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         @ended="onEnded"
       />
 
+      <!-- Транспорт -->
       <div class="row controls" style="margin-bottom:10px">
         <button @click="prev" title="Previous">⏮</button>
         <button @click="toggle" :class="{active:isPlaying}" title="Play/Pause">
@@ -569,8 +607,10 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         </div>
       </div>
 
+      <!-- Визуализатор спектра -->
       <canvas ref="visCanvas" class="visualizer"></canvas>
 
+      <!-- Перемотка по треку -->
       <input
         class="range"
         type="range"
@@ -580,6 +620,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         aria-label="Seek"
       />
 
+      <!-- Громкость/скорость/повтор -->
       <div class="row" style="margin-top:10px">
         <label>Громкость
           <input type="range" min="0" max="1" step="0.01" v-model.number="volume" />
@@ -601,7 +642,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
       </div>
     </div>
 
-    <!-- Редактор цепочки эффектов -->
+    <!-- Редактор цепочки: порядок и режим подключения блоков -->
     <div class="card" style="margin-top:12px">
       <h3>Цепочка эффектов (перетаскивай, меняй режим)</h3>
       <Draggable
@@ -633,10 +674,11 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
       </Draggable>
     </div>
 
-    <!-- Панель параметров эффектов -->
+    <!-- Панель параметров эффектов (ручки) -->
     <div class="card" style="margin-top:12px">
       <h3>Эффекты</h3>
 
+      <!-- EQ -->
       <div class="row" style="margin-bottom:8px">
         <label><input type="checkbox" v-model="fx.eqOn" /> EQ</label>
         <label>Низкие
@@ -650,6 +692,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         </label>
       </div>
 
+      <!-- Distortion -->
       <div class="row" style="margin-bottom:8px">
         <label><input type="checkbox" v-model="fx.distOn" /> Distortion</label>
         <label>Amount
@@ -657,6 +700,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         </label>
       </div>
 
+      <!-- Chorus -->
       <div class="row" style="margin-bottom:8px">
         <label><input type="checkbox" v-model="fx.chorusOn" /> Chorus</label>
         <label>Rate
@@ -670,6 +714,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         </label>
       </div>
 
+      <!-- Delay -->
       <div class="row" style="margin-bottom:8px">
         <label><input type="checkbox" v-model="fx.delayOn" /> Delay</label>
         <label>Time
@@ -683,6 +728,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         </label>
       </div>
 
+      <!-- Reverb -->
       <div class="row" style="margin-bottom:8px">
         <label><input type="checkbox" v-model="fx.reverbOn" /> Reverb</label>
         <label>Wet
@@ -692,6 +738,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         <button @click="loadReverbIR">Загрузить ИР</button>
       </div>
 
+      <!-- Pan -->
       <div class="row" style="margin-bottom:8px">
         <label><input type="checkbox" v-model="fx.panOn" /> Pan</label>
         <label>Pan
@@ -699,6 +746,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
         </label>
       </div>
 
+      <!-- Compressor -->
       <div class="row" style="margin-bottom:8px">
         <label><input type="checkbox" v-model="fx.compOn" /> Compressor</label>
         <label>Threshold
@@ -719,7 +767,7 @@ onBeforeUnmount(() => cancelAnimationFrame(rafId))
       </div>
     </div>
 
-    <!-- Плейлист -->
+    <!-- Плейлист: список треков -->
     <div class="card" style="margin-top:12px">
       <h3>Плейлист</h3>
       <div
