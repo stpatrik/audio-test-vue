@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # audio-test-vue
 =======
 # Vue 3 + Vite
